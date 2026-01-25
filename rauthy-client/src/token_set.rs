@@ -186,6 +186,29 @@ impl JwtIdClaims {
 
         Ok(slf)
     }
+
+    pub async fn from_token_validated_no_nonce(token: &str) -> Result<Self, RauthyError> {
+        let config = OidcProvider::config()?;
+
+        let pubkey = JwkPublicKey::get_for_token(token).await?;
+        let claims: claims::JWTClaims<Self> =
+            validate_jwt!(Self, pubkey, token, config.verification_options.clone())?;
+
+        let mut slf = claims.custom;
+        slf.sub = claims.subject;
+
+        if slf.typ != JwtTokenType::Id {
+            return Err(RauthyError::Token(Cow::from("Must provide an id token")));
+        }
+
+        if config.email_verified && slf.email_verified != Some(true) {
+            return Err(RauthyError::InvalidClaims(
+                "'email_verified' is missing or false",
+            ));
+        }
+
+        Ok(slf)
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
